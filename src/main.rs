@@ -26,7 +26,7 @@ struct Cli {
     alignment: String,
     /// #CHROM POS ALT REF HGVS.c STRAND
     #[clap(short, long)]
-    vcf: String,
+    tsv: String,
     /// tab-separated distance matrix (id in leftmost column only, not on top)
     /// Ex: rapidnj <fasta.fa> -o m | tail -n +2 | tr ' ' '\t'
     #[clap(short, long)]
@@ -51,7 +51,7 @@ fn main() {
     let cli = Cli::parse(); 
     // Read files
     let mut fasta_reader = Reader::from_path(&cli.alignment).unwrap();
-    let mut vcf_reader = csv::ReaderBuilder::new().has_headers(false).delimiter(b'\t').from_reader(File::open(&cli.vcf).unwrap());
+    let mut vcf_reader = csv::ReaderBuilder::new().has_headers(false).delimiter(b'\t').from_reader(File::open(&cli.tsv).unwrap());
     let mut matrix_reader = csv::ReaderBuilder::new().has_headers(false).delimiter(b'\t').from_reader(File::open(&cli.distance_matrix).unwrap());
 
     // Collect the results
