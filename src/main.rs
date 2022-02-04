@@ -66,15 +66,15 @@ fn main() {
     writeln!(io::stdout(), "{0: <10}\t{1: <5}\t{2: <1}\t{3: <5}\t{4: <20}\t{5: <5}\t{6: <5}\t{7: <5}\t{8: <20}\t{9: <5}", "VCF_CHR", "VCF_POS", "VCF_REF", "VCF_ALT", "IN_SPC", "IN_NUC", "REF_COR", "OUT_NUC", "OUT_SPC", "OUT_RNK");
     } else {
     // Print header
-    writeln!(io::stdout(), "{0: <10}\t{1: <5}\t{2: <1}\t{3: <5}\t{4: <20}\t{5: <5}\t{6: <20}\t{7: <5}\t{8: <5}\t{9: <5}\t{10: <5}\t{11: <5}\t{12: <5}\t{13: <5}\t{14: <5}\t{15: <5}\t{16: <5}\t{17: <20}\t{18: <5}", "VCF_CHR", "VCF_POS", "VCF_REF", "VCF_ALT", "VCF_ANN", "GFF_STR", "IN_SPC", "IN_NUC", "REF!=IN", "REF_COR", "ALT_COR", "ALI_POS", "IN_POS", "GAP", "OUT_NUC", "DSRGD", "NOT_CDS", "OUT_SPC", "OUT_RNK");
+    writeln!(io::stdout(), "{0: <10}\t{1: <5}\t{2: <1}\t{3: <5}\t{4: <10}\t{5: <5}\t{6: <20}\t{7: <5}\t{8: <5}\t{9: <5}\t{10: <5}\t{11: <5}\t{12: <5}\t{13: <5}\t{14: <5}\t{15: <5}\t{16: <5}\t{17: <20}\t{18: <5}", "VCF_CHR", "VCF_POS", "VCF_REF", "VCF_ALT", "VCF_ANN", "GFF_STR", "IN_SPC", "IN_NUC", "REF!=IN", "REF_COR", "ALT_COR", "ALI_POS", "IN_POS", "GAP", "OUT_NUC", "DSRGD", "NOT_CDS", "OUT_SPC", "OUT_RNK");
     }
     
     // Get which species are present in distance matrix 
     let n_matrix = matrix.as_ref().unwrap().iter().len();
     let mut species_record: Vec<&str> = Vec::with_capacity(n_matrix);
-           //     lazy_static! { 
-           //         static ref RE: regex::Regex = regex::Regex::new(r"\d+").unwrap();
-           //     }
+                lazy_static! { 
+                    static ref RE: regex::Regex = regex::Regex::new(r"\d+").unwrap();
+                }
     
     for ma in matrix.as_ref().unwrap() {
         species_record.push(&ma[0].as_ref());
@@ -200,16 +200,17 @@ fn main() {
                 if ss.contains("-") || ss.contains("*") {
                     not_cds += 1;
                 }
-
-                let corr_pos = ss.chars().find(|a| a.is_digit(10)).and_then(|a| a.to_digit(10)).unwrap();
+                // only finds first digit
+                //let corr_pos = ss.chars().find(|a| a.is_digit(10)).and_then(|a| a.to_digit(10)).unwrap();
                 
-                //let cap = RE.captures(ss).unwrap();
+                let cap = RE.captures(ss).unwrap();
                 let mut base_vs_reference = 0;
 
-                  //  let corr_pos = cap.get(0).map_or("", |m| m.as_str()).parse::<i32>().unwrap();
+                    let corr_pos = cap.get(0).map_or("", |m| m.as_str()).parse::<i32>().unwrap();
                 //if nucleotide == parsed_position {
                 // Not sure if the && ... part is ok..
-                if nucleotide == corr_pos && *base_c != b'-' {
+                //if nucleotide == corr_pos && *base_c != b'-' {
+                if nucleotide == corr_pos {
 
                     if *base_c != reference.as_bytes()[0] {
                         base_vs_reference = 1;
@@ -250,14 +251,16 @@ fn main() {
                     }
                     if cli.clean_output {
 
-                    writeln!(io::stdout(), "{0: <10}\t{1: <5}\t{2: <1}\t{3: <5}\t{4: <20}\t{5: <5}\t{6: <5}\t{7: <5}\t{8: <20}\t{9: <5}", chrom, pos, reference, alt, current_record, *base_c as char, *strand_corrected, *base_o as char, outgroup_record, outgroup_rank);
+                        writeln!(io::stdout(), "{0: <10}\t{1: <5}\t{2: <1}\t{3: <5}\t{4: <20}\t{5: <5}\t{6: <5}\t{7: <5}\t{8: <20}\t{9: <5}", chrom, pos, reference, alt, current_record, *base_c as char, *strand_corrected, *base_o as char, outgroup_record, outgroup_rank);
                     } else {
                     
-                    writeln!(io::stdout(), "{0: <10}\t{1: <5}\t{2: <5}\t{3: <5}\t{4: <20}\t{5: <5}\t{6: <20}\t{7: <5}\t{8: <5}\t{9: <5}\t{10: <5}\t{11: <5}\t{12: <5}\t{13: <5}\t{14: <5}\t{15: <5}\t{16: <5}\t{17: <20}\t{18: <5}", chrom, pos, reference, alt, hgvs.to_string(), actual_strand, current_record, *base_c as char, base_vs_reference,*strand_corrected as char, *strand_correctedalt as char, position, nucleotide, gap, *base_o as char, disregard, not_cds, outgroup_record, outgroup_rank);
+                        writeln!(io::stdout(), "{0: <10}\t{1: <5}\t{2: <5}\t{3: <5}\t{4: <10}\t{5: <5}\t{6: <20}\t{7: <5}\t{8: <5}\t{9: <5}\t{10: <5}\t{11: <5}\t{12: <5}\t{13: <5}\t{14: <5}\t{15: <5}\t{16: <5}\t{17: <20}\t{18: <5}", chrom, pos, reference, alt, hgvs.to_string(), actual_strand, current_record, *base_c as char, base_vs_reference,*strand_corrected as char, *strand_correctedalt as char, position, nucleotide, gap, *base_o as char, disregard, not_cds, outgroup_record, outgroup_rank);
                  //   if reference.as_bytes()[0] != *base_c {
                  //       panic!("Reference: {} does not match ingroup base: {}!", reference.as_bytes()[0], base_c);
                  //   }
-                }
+                    }
+                    // could this be here?
+                    break;
                     }
             } 
 
