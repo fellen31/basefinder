@@ -40,6 +40,9 @@ struct Cli {
     /// Hide non-cds
     #[clap(short, long)]
     remove_utr: bool,
+    /// Use Allele Frequency tsv 
+    #[clap(long)]
+    af_tsv: bool,
 }
 struct distance_struct {
     name: String,
@@ -67,6 +70,10 @@ fn main() {
     } else {
     // Print header
     writeln!(io::stdout(), "{0: <10}\t{1: <5}\t{2: <1}\t{3: <5}\t{4: <10}\t{5: <5}\t{6: <20}\t{7: <5}\t{8: <5}\t{9: <5}\t{10: <5}\t{11: <5}\t{12: <5}\t{13: <5}\t{14: <5}\t{15: <5}\t{16: <5}\t{17: <20}\t{18: <5}", "VCF_CHR", "VCF_POS", "VCF_REF", "VCF_ALT", "VCF_ANN", "GFF_STR", "IN_SPC", "IN_NUC", "REF!=IN", "REF_COR", "ALT_COR", "ALI_POS", "IN_POS", "GAP", "OUT_NUC", "DSRGD", "NOT_CDS", "OUT_SPC", "OUT_RNK");
+    if cli.af_tsv {
+
+    writeln!(io::stdout(), "{0: <10}\t{1: <5}\t{2: <3}\t{3: <3}\t{4: <8}\t{5: <5}\t{6: <18}\t{7: <5}\t{8: <5}\t{9: <5}\t{10: <5}\t{11: <5}\t{12: <5}\t{13: <5}\t{14: <5}\t{15: <5}\t{16: <5}\t{17: <20}\t{18: <5}", "CHROM", "POS", "REF", "ALT", "ANN", "STR", "IN_SPC", "IN_NUC", "REF!=IN", "REF_COR", "ALT_COR", "ALI_POS", "IN_POS", "GAP", "OUT_NUC", "DSRGD", "NOT_CDS", "OUT_SPC", "OUT_RNK");
+    }
     }
     
     // Get which species are present in distance matrix 
@@ -151,12 +158,30 @@ fn main() {
         // Check first so no need to go through everything
 
         if current_record.contains(chrom) {
-            // Get fields 
-            let pos = &recordx[1];
-            let reference = &recordx[2];
-            let alt = &recordx[3];
-            let hgvs = &recordx[4];
-            let actual_strand = &recordx[5];
+            // Get fields
+            let mut pos: &str;
+            let mut reference: &str;
+            let mut alt: &str;
+            let mut hgvs: &str;
+            let mut actual_strand: &str;
+            let mut af: &str = "";
+            if cli.af_tsv {
+            pos = &recordx[1];
+            reference = &recordx[2];
+            alt = &recordx[3];
+            hgvs = &recordx[4]; 
+            af = &recordx[5];
+            actual_strand = &recordx[6];
+            } else {
+            pos = &recordx[1];
+            reference = &recordx[2];
+            alt = &recordx[3];
+            hgvs = &recordx[4]; 
+            actual_strand = &recordx[5];
+            }
+
+            let mut allele_frequency_numeric = af.parse::<f32>().unwrap();
+
 
             let parsed_position = pos.trim().parse::<i32>().expect("Numeric!");
             // And if the current FASTA record contains the VCF Record 
@@ -209,8 +234,8 @@ fn main() {
                     let corr_pos = cap.get(0).map_or("", |m| m.as_str()).parse::<i32>().unwrap();
                 //if nucleotide == parsed_position {
                 // Not sure if the && ... part is ok..
-                //if nucleotide == corr_pos && *base_c != b'-' {
-                if nucleotide == corr_pos {
+                if nucleotide == corr_pos && *base_c != b'-' {
+                //if nucleotide == corr_pos {
 
                     if *base_c != reference.as_bytes()[0] {
                         base_vs_reference = 1;
@@ -249,18 +274,31 @@ fn main() {
                             continue;
                         }
                     }
+                    let mut derived_frequency = 0_f32;
+
+                    if base_o == strand_corrected {
+                        derived_frequency = allele_frequency_numeric;
+                    } else {
+                        derived_frequency = 1_f32 - allele_frequency_numeric;
+                    }
+                        
                     if cli.clean_output {
 
                         writeln!(io::stdout(), "{0: <10}\t{1: <5}\t{2: <1}\t{3: <5}\t{4: <20}\t{5: <5}\t{6: <5}\t{7: <5}\t{8: <20}\t{9: <5}", chrom, pos, reference, alt, current_record, *base_c as char, *strand_corrected, *base_o as char, outgroup_record, outgroup_rank);
                     } else {
-                    
-                        writeln!(io::stdout(), "{0: <10}\t{1: <5}\t{2: <5}\t{3: <5}\t{4: <10}\t{5: <5}\t{6: <20}\t{7: <5}\t{8: <5}\t{9: <5}\t{10: <5}\t{11: <5}\t{12: <5}\t{13: <5}\t{14: <5}\t{15: <5}\t{16: <5}\t{17: <20}\t{18: <5}", chrom, pos, reference, alt, hgvs.to_string(), actual_strand, current_record, *base_c as char, base_vs_reference,*strand_corrected as char, *strand_correctedalt as char, position, nucleotide, gap, *base_o as char, disregard, not_cds, outgroup_record, outgroup_rank);
+                   if cli.af_tsv {
+                        writeln!(io::stdout(), "{0: <10}\t{1: <5}\t{2: <5}\t{3: <5}\t{4: <10}\t{5: <5}\t{6: <5}\t{7: <20}\t{8: <5}\t{9: <5}\t{10: <5}\t{11: <5}\t{12: <5}\t{13: <5}\t{14: <5}\t{15: <5}\t{16: <5}\t{17: <20}\t{18: <5}\t{19: <5}\t{20: <5}", chrom, pos, reference, alt, hgvs.to_string(), allele_frequency_numeric, actual_strand, current_record, *base_c as char, base_vs_reference,*strand_corrected as char, *strand_correctedalt as char, position, nucleotide, gap, *base_o as char, disregard, not_cds, outgroup_record, outgroup_rank, derived_frequency);
+                   }
+                   else {
+
+                        writeln!(io::stdout(), "{0: <10}\t{1: <5}\t{2: <5}\t{3: <5}\t{4: <10}\t{5: <5}\t{6: <20}\t{7: <5}\t{8: <5}\t{9: <5}\t{10: <5}\t{11: <5}\t{12: <5}\t{13: <5}\t{14: <5}\t{15: <5}\t{16: <5}\t{17: <20}\t{18: <5}", chrom, pos, reference, alt, hgvs.to_string(), actual_strand, current_record, *base_c as char, base_vs_reference,*strand_corrected as char, *strand_correctedalt as char, position, nucleotide, gap, *base_o as char, disregard, not_cds, outgroup_record, outgroup_rank,);
                  //   if reference.as_bytes()[0] != *base_c {
                  //       panic!("Reference: {} does not match ingroup base: {}!", reference.as_bytes()[0], base_c);
                  //   }
                     }
+                    }
                     // could this be here?
-                    break;
+                    //break;
                     }
             } 
 
