@@ -24,25 +24,23 @@ struct Cli {
     /// Sequence alignment in fasta format
     #[clap(short,long)]
     alignment: String,
-    /// #CHROM POS ALT REF HGVS.c STRAND
+    /// #CHROM POS ALT REF HGVS.c AF STRAND
     #[clap(short, long)]
     tsv: String,
     /// tab-separated distance matrix (id in leftmost column only, not on top)
     /// Ex: rapidnj <fasta.fa> -o m | tail -n +2 | tr ' ' '\t'
     #[clap(short, long)]
     distance_matrix: String,
-    /// hide disregarded
+    /// hide non-cds rows
     #[clap(short, long)]
-    no_disregarded: bool,
-     /// Clean output (hide some columns)
-    #[clap(short, long)]
-    clean_output: bool,
-    /// Hide non-cds
-    #[clap(short, long)]
-    remove_utr: bool,
-    /// Use Allele Frequency tsv 
+    hide_utr: bool,
+     /// Hide header
     #[clap(long)]
-    af_tsv: bool,
+    no_header: bool,  
+    /// Verbose
+    #[clap(short,long)]
+    verbose: bool,
+
 }
 struct distance_struct {
     name: String,
@@ -64,16 +62,20 @@ fn main() {
     
     // Initialise some variables
     let mut i = 0;
-    if cli.clean_output {
-
-    writeln!(io::stdout(), "{0: <10}\t{1: <5}\t{2: <1}\t{3: <5}\t{4: <20}\t{5: <5}\t{6: <5}\t{7: <5}\t{8: <20}\t{9: <5}", "VCF_CHR", "VCF_POS", "VCF_REF", "VCF_ALT", "IN_SPC", "IN_NUC", "REF_COR", "OUT_NUC", "OUT_SPC", "OUT_RNK");
-    } else {
-    // Print header
-    writeln!(io::stdout(), "{0: <10}\t{1: <5}\t{2: <1}\t{3: <5}\t{4: <10}\t{5: <5}\t{6: <20}\t{7: <5}\t{8: <5}\t{9: <5}\t{10: <5}\t{11: <5}\t{12: <5}\t{13: <5}\t{14: <5}\t{15: <5}\t{16: <5}\t{17: <20}\t{18: <5}", "VCF_CHR", "VCF_POS", "VCF_REF", "VCF_ALT", "VCF_ANN", "GFF_STR", "IN_SPC", "IN_NUC", "REF!=IN", "REF_COR", "ALT_COR", "ALI_POS", "IN_POS", "GAP", "OUT_NUC", "DSRGD", "NOT_CDS", "OUT_SPC", "OUT_RNK");
-    if cli.af_tsv {
-
-    writeln!(io::stdout(), "{0: <10}\t{1: <5}\t{2: <3}\t{3: <3}\t{4: <8}\t{5: <5}\t{6: <18}\t{7: <5}\t{8: <5}\t{9: <5}\t{10: <5}\t{11: <5}\t{12: <5}\t{13: <5}\t{14: <5}\t{15: <5}\t{16: <5}\t{17: <20}\t{18: <5}", "CHROM", "POS", "REF", "ALT", "ANN", "STR", "IN_SPC", "IN_NUC", "REF!=IN", "REF_COR", "ALT_COR", "ALI_POS", "IN_POS", "GAP", "OUT_NUC", "DSRGD", "NOT_CDS", "OUT_SPC", "OUT_RNK");
-    }
+    
+    //Create writer
+    let stdout = io::stdout();
+    let handle = stdout.lock();
+    let mut writer = io::BufWriter::new(handle);
+    // Write header
+    if !cli.no_header {
+        if cli.verbose {
+    writeln!(writer, "{0: <10}\t{1: <5}\t{2: <3}\t{3: <3}\t{4: <10}\t{5: <4}\t{6: <3}\t{7: <10}\t{8: <3}\t{9: <3}\t{10: <3}\t{11: <3}\t{12: <5}\t{13: <5}\t{14: <5}\t{15: <3}\t{16: <3}\t{17: <3}\t{18: <10}\t{19: <3}\t{20: <5}\t{21: <5}", "#CHROM", "POS", "REF", "ALT", "HGVS", "AF", "STR", "IN", "IN_N", "!=", "C_REF", "C_ALT", "ALPOS", "INPOS", "GAP", "O_NUC", "!KEEP", "!CDS", "OUT_SPC", "RNK", "DAF", "V");
+        }
+        else {
+        writeln!(writer, "{0: <10}\t{1: <5}\t{2: <3}\t{3: <3}\t{4: <10}\t{5: <4}\t{6: <3}\t{7: <10}\t{8: <3}\t{9: <3}\t{10: <3}\t{11: <3}\t{12: <10}\t{13: <3}\t{14: <5}\t{15: <5}", 
+                 "#CHROM", "POS", "REF", "ALT", "HGVS", "AF", "STR", "IN", "IN_N", "C_REF", "C_ALT", "O_NUC", "OUT_SPC", "RNK", "DAF", "V");
+        }
     }
     
     // Get which species are present in distance matrix 
@@ -107,24 +109,29 @@ fn main() {
                 let mut i = 0;
             
                 // Then go through all columns
-                for qa in matrix.as_ref().unwrap() {
+                for (pos,qa) in matrix.as_ref().unwrap().iter().enumerate() {
                     
                     // Skip the first and don't go further than the last
-                    if i <= n_matrix {
-                       if i > 1 {
+                   // if i <= n_matrix {
+                       // The first record of the row is the name of the current record
+                       // So we have to skip that
+                       if pos > 0  {
                            // Get the value at current column 
-                           let number = &line[i];
+                           let number = &line[pos];
                            // Put it into a vector 
-                           let some = distance_struct {name: (&species_record[i-1]).to_string(), distance: number.parse::<f32>().unwrap()};
+                           // Since first record is the name, should pos-1 be correct here?
+                           let some = distance_struct {name: (&species_record[pos-1]).to_string(), distance: number.parse::<f32>().unwrap()};
                            x.push(some);
                        }
-                    }
-                    i += 1;
+                   // }
+                   // i += 1;
                 }
                 // Sort the vector by distance
                 x.sort_by(|a, b| a.distance.partial_cmp(&b.distance).unwrap());
                 let mut i = 0;
+
                 for element in &x {
+                    //  i > 0? Is it because the first element would be 0 - the same species
                     if i > 0 {
                             test.push(&element.name);
                     }
@@ -157,40 +164,20 @@ fn main() {
         
         // Check first so no need to go through everything
 
-        if current_record.contains(chrom) {
+        if current_record == chrom {
             // Get fields
-            let mut pos: &str;
-            let mut reference: &str;
-            let mut alt: &str;
-            let mut hgvs: &str;
-            let mut actual_strand: &str;
-            let mut af: &str = "";
-            if cli.af_tsv {
-            pos = &recordx[1];
-            reference = &recordx[2];
-            alt = &recordx[3];
-            hgvs = &recordx[4]; 
-            af = &recordx[5];
-            actual_strand = &recordx[6];
-            } else {
-            pos = &recordx[1];
-            reference = &recordx[2];
-            alt = &recordx[3];
-            hgvs = &recordx[4]; 
-            actual_strand = &recordx[5];
-            }
+            let mut pos = &recordx[1];
+            let mut reference = &recordx[2];
+            let mut alt = &recordx[3];
+            let mut hgvs = &recordx[4]; 
+            let mut af = &recordx[5];
+            let mut actual_strand = &recordx[7];
+            let mut v = &recordx[6];
 
             let mut allele_frequency_numeric = af.parse::<f32>().unwrap();
 
 
             let parsed_position = pos.trim().parse::<i32>().expect("Numeric!");
-            // And if the current FASTA record contains the VCF Record 
-            // Not sure which way to go here, might be too loose naming
-            // The VCF has to be more spefic than the distance matrix
-            // And it should be == to the fasta.
-            // However if fasta has eval|eval_4808_1 etc... 
-            // Best if they are equal and _not_ using contains
-            // Then compare the sequences
             
             let current_sequence = record.seq();
             let outgroup_sequence = records.as_ref().unwrap()[outgroup_id].seq();
@@ -263,42 +250,41 @@ fn main() {
                         disregard += 1;
                     }
                                     
-                    if cli.no_disregarded {
-                        if disregard > 0 {
-                            continue;
-                        }
+                    if current_record == outgroup_record {
+                        disregard += 1;
                     }
 
-                    if cli.remove_utr {
-                    if not_cds > 0 {
-                            continue;
+                    if cli.hide_utr {
+                        if not_cds > 0 {
+                                continue;
+                            }
                         }
+                    
+                    if !cli.verbose {
+                        if not_cds > 0 {
+                                continue;
+                            }
+                        if disregard > 0 {
+                                continue;
+                            }
+                            
+                            
                     }
                     let mut derived_frequency = 0_f32;
 
                     if base_o == strand_corrected {
+                        // 1_f32 - af är rätt
                         derived_frequency = allele_frequency_numeric;
                     } else {
                         derived_frequency = 1_f32 - allele_frequency_numeric;
                     }
-                        
-                    if cli.clean_output {
 
-                        writeln!(io::stdout(), "{0: <10}\t{1: <5}\t{2: <1}\t{3: <5}\t{4: <20}\t{5: <5}\t{6: <5}\t{7: <5}\t{8: <20}\t{9: <5}", chrom, pos, reference, alt, current_record, *base_c as char, *strand_corrected, *base_o as char, outgroup_record, outgroup_rank);
+                   if cli.verbose {
+
+                        writeln!(writer, "{0: <10}\t{1: <5}\t{2: <3}\t{3: <3}\t{4: <10}\t{5:.2}\t{6: <3}\t{7: <10}\t{8: <3}\t{9: <3}\t{10: <3}\t{11: <3}\t{12: <5}\t{13: <5}\t{14: <5}\t{15: <3}\t{16: <3}\t{17: <3}\t{18: <10}\t{19: <3}\t{20: <5}\t{21: <5}", chrom, pos, reference, alt, hgvs.to_string(), allele_frequency_numeric, actual_strand, current_record, *base_c as char, base_vs_reference,*strand_corrected as char, *strand_correctedalt as char, position, nucleotide, gap, *base_o as char, disregard, not_cds, outgroup_record, outgroup_rank, derived_frequency,v);
                     } else {
-                   if cli.af_tsv {
-                        writeln!(io::stdout(), "{0: <10}\t{1: <5}\t{2: <5}\t{3: <5}\t{4: <10}\t{5: <5}\t{6: <5}\t{7: <20}\t{8: <5}\t{9: <5}\t{10: <5}\t{11: <5}\t{12: <5}\t{13: <5}\t{14: <5}\t{15: <5}\t{16: <5}\t{17: <20}\t{18: <5}\t{19: <5}\t{20: <5}", chrom, pos, reference, alt, hgvs.to_string(), allele_frequency_numeric, actual_strand, current_record, *base_c as char, base_vs_reference,*strand_corrected as char, *strand_correctedalt as char, position, nucleotide, gap, *base_o as char, disregard, not_cds, outgroup_record, outgroup_rank, derived_frequency);
-                   }
-                   else {
-
-                        writeln!(io::stdout(), "{0: <10}\t{1: <5}\t{2: <5}\t{3: <5}\t{4: <10}\t{5: <5}\t{6: <20}\t{7: <5}\t{8: <5}\t{9: <5}\t{10: <5}\t{11: <5}\t{12: <5}\t{13: <5}\t{14: <5}\t{15: <5}\t{16: <5}\t{17: <20}\t{18: <5}", chrom, pos, reference, alt, hgvs.to_string(), actual_strand, current_record, *base_c as char, base_vs_reference,*strand_corrected as char, *strand_correctedalt as char, position, nucleotide, gap, *base_o as char, disregard, not_cds, outgroup_record, outgroup_rank,);
-                 //   if reference.as_bytes()[0] != *base_c {
-                 //       panic!("Reference: {} does not match ingroup base: {}!", reference.as_bytes()[0], base_c);
-                 //   }
+                        writeln!(writer, "{0: <10}\t{1: <5}\t{2: <3}\t{3: <3}\t{4: <10}\t{5: <4}\t{6: <3}\t{7: <10}\t{8: <3}\t{9: <3}\t{10: <3}\t{11: <3}\t{12: <10}\t{13: <3}\t{14: <5}\t{15: <5}", chrom, pos, reference, alt, hgvs.to_string(), allele_frequency_numeric, actual_strand, current_record, *base_c as char, *strand_corrected as char, *strand_correctedalt as char, *base_o as char, outgroup_record, outgroup_rank, derived_frequency,v);
                     }
-                    }
-                    // could this be here?
-                    //break;
                     }
             } 
 
