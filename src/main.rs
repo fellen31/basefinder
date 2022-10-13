@@ -40,6 +40,15 @@ struct Cli {
     /// Verbose
     #[clap(short,long)]
     verbose: bool,
+    /// Groups
+    #[clap(short,long)]
+    groups: bool,
+    /// Ingroup
+    #[clap(short, long)]
+    ingroup: Option<String>,
+    /// Outgroup
+    #[clap(short, long)]
+    outgroup: Option<String>,
 }
 struct distance_struct {
     name: String,
@@ -88,12 +97,25 @@ fn main() {
     // faster than inside loop).
     lazy_static! { 
         static ref RE: regex::Regex = regex::Regex::new(r"\d+").unwrap();
+        static ref letters: regex::Regex = regex::Regex::new(r"[[:alpha:]]+").unwrap();
     }
     
     // Add every species (column 0) to species_record
     for species in matrix.as_ref().unwrap() {
         species_record.push(&species[0].as_ref());
     }
+    if let Some(ref x) = cli.ingroup {
+                let mut fasta_records = Vec::new();
+                for record in records.as_ref().unwrap().iter() {
+                    let h = str::from_utf8(record.head()).unwrap();
+                    let cap = letters.captures(h).unwrap();
+                    let cap = cap.get(0).map_or("", |m| m.as_str());
+                    fasta_records.push(cap);
+            }
+                if !fasta_records.contains(&x.as_str()) {
+                    panic!("Ingroup not found");
+                }
+            }
 
     // For every record in FASTA file
     for record in records.as_ref().unwrap().iter() {
@@ -102,7 +124,17 @@ fn main() {
         let mut outgroup_id = 0;
         // Name of current record
         let mut current_record = str::from_utf8(record.head()).unwrap();
-        
+            
+            // If specifying ingroup, regex letters from fasta and skip records not matching CLI
+            if let Some(ref x) = cli.ingroup {
+                    let cap = letters.captures(current_record).unwrap();
+                    let cap = cap.get(0).map_or("", |m| m.as_str());
+                    
+                if cap != x {
+                    continue;
+                }
+            }
+ 
         // Go through every matrix row
         for line in matrix.as_ref().unwrap() {
             
@@ -115,17 +147,17 @@ fn main() {
                 let mut i = 0;
             
                 // Then go through all columns
-                for (col,qa) in matrix.as_ref().unwrap().iter().enumerate() {
+                for (n,col) in matrix.as_ref().unwrap().iter().enumerate() {
                     
                        // The first record of the row is the name of the current record
                        // So we have to skip that
-                       if col > 0  {
+                       if n > 0  {
                            // Get the value at current column 
-                           let number = &line[col];
+                           let number = &line[n];
                            // Put it into a vector 
                            // Since first record is the name, should pos-1 be correct here?
                            let species_distance = distance_struct {
-                               name: (&species_record[col-1]).to_string(), 
+                               name: (&species_record[n-1]).to_string(), 
                                distance: number.parse::<f32>().unwrap()
                            };
 
@@ -152,13 +184,39 @@ fn main() {
 
             // When distance record matches fasta record, break the loop 
             // and get the id of the fasta record
+            
+            // But first, if outgruop is specified as CLI arg, 
+            // check if fasta contains speciefied outgrup by 
+            // selecting only letters in fasta records 
+            if let Some(ref x) = cli.outgroup {
+                let mut fasta_records = Vec::new();
+                for record in records.as_ref().unwrap().iter() {
+                    let h = str::from_utf8(record.head()).unwrap();
+                    let cap = letters.captures(h).unwrap();
+                    let cap = cap.get(0).map_or("", |m| m.as_str());
+                    fasta_records.push(cap);
+            }
+                if !fasta_records.contains(&x.as_str()) {
+                    panic!("Outgroup not found");
+                }
+            }
+            
+
+
             '_outer: for spec in sorted_distance_name {
                 let mut i = 0;
                     '_inner: for record in records.as_ref().unwrap().iter() {
                         let head = str::from_utf8(record.head()).unwrap();
-                        if head.contains(spec) {
-                            outgroup_id = i;
-                            break '_outer;
+                            if let Some(ref y) = cli.outgroup {
+                                if head.contains(y) {
+                                    outgroup_id = i;
+                                    break '_outer;
+                                } 
+                            } else { 
+                                if head.contains(spec) {
+                                    outgroup_id = i;
+                                    break '_outer;
+                                }
                 } 
                 i += 1;
             }    
@@ -299,13 +357,13 @@ fn main() {
                     // it's ancestral (?) and the derived allele freq should be 1 - alterative
                     // allele freq (?)
                     //
-                    let mut derived = "X";
+                    let mut derived = b'X' as char;
                     if base_o == strand_corrected {
-                        derived = "N";
-                        derived_frequency = 1_f32 - allele_frequency_numeric;
-                    } else {
+                        derived = *strand_correctedalt as char;
                         derived_frequency = allele_frequency_numeric;
-                    derived = "Y";
+                    } else {
+                        derived_frequency = 1_f32 - allele_frequency_numeric;
+                        derived = *strand_corrected as char;
                     }
 
                    if cli.verbose {
